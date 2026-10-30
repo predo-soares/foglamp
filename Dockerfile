@@ -69,18 +69,25 @@ CMD ["bun", "run", "scripts/docker-bootstrap.ts"]
 # NEXT_PUBLIC_* are baked into the client bundle at build time, so they must be
 # the browser-facing URLs (passed as build args by compose). INTERNAL_SERVER_URL
 # is supplied at runtime for the SSR session gate to reach the server service.
-FROM base AS web
+# Build SDK exports with Bun, then use the supported Node.js runtime for Next.
+# The older Bun runtime in the backend image lacks worker_threads APIs used by
+# the Next.js build and consumed all server memory during type checking.
+FROM base AS web-sdk
+RUN bun run --filter foglamp build
+
+FROM node:22-bookworm-slim AS web
+WORKDIR /app
+COPY --from=web-sdk /app /app
 ARG NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3001
 ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-# The dashboard imports foglamp/hud from the SDK workspace dist output.
-RUN bun run --filter foglamp build && bun run --filter web build
 WORKDIR /app/apps/web
+RUN node /app/node_modules/next/dist/bin/next build
 ENV NODE_ENV=production
 ENV PORT=3001
 EXPOSE 3001
-CMD ["bun", "run", "start"]
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start"]
 
 # ---------- hud-demo (hosted live HUD example) ----------
 # The Vite app (which imports `foglamp/hud`) + a Bun server that runs mock agents
