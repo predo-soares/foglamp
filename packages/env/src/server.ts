@@ -8,6 +8,8 @@ const serverSchema = {
   BETTER_AUTH_URL: z.url(),
   CORS_ORIGIN: z.url(),
   CORS_EXTRA_ORIGINS: z.string().optional(),
+  // Shared parent domain when the app and API use sibling subdomains.
+  AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
   // Optional: email (magic-link, alert notifications) is enabled only when set.
   // An email-less self-host logs in via the seeded email+password admin.
   RESEND_API_KEY: z.string().min(1).optional(),

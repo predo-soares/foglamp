@@ -52,3 +52,6 @@ cannot automatically merge its public database port mappings.
 The migrate service must exit successfully before the app starts. Its first
 bootstrap logs contain the initial project API key; keep them private.
 Validate login and one test trace before considering deployment complete.
+
+The production Compose sets AUTH_COOKIE_DOMAIN=convivae.com so browsers accept
+the API session cookie and send it to both the API and the dashboard.

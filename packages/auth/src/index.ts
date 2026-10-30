@@ -26,6 +26,7 @@ import {
 import { and, eq, gt } from "drizzle-orm";
 import Stripe from "stripe";
 import { uuidv7 } from "uuidv7";
+import { getSharedCookieDomain } from "./cookie-domain";
 import {
   sendInvitationEmail,
   sendMagicLinkEmail,
@@ -41,21 +42,6 @@ function slugify(input: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return base || "workspace";
-}
-
-function getSharedCookieDomain(appUrl: string) {
-  const hostname = new URL(appUrl).hostname.toLowerCase();
-
-  if (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "::1" ||
-    hostname.endsWith(".localhost")
-  ) {
-    return null;
-  }
-
-  return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
 }
 
 // Which sign-in methods this deployment offers, derived from configuration.
@@ -334,7 +320,9 @@ export function createAuth() {
     },
     advanced: {
       crossSubDomainCookies: (() => {
-        const domain = getSharedCookieDomain(env.CORS_ORIGIN);
+        const domain = getSharedCookieDomain(
+          env.CORS_ORIGIN, env.BETTER_AUTH_URL, env.AUTH_COOKIE_DOMAIN,
+        );
 
         return domain
           ? {
