@@ -1,7 +1,8 @@
 # Foglamp production stack for Coolify.
 # Configure required variables in Coolify; never commit production secrets.
 # Route web:3001, server:3000, ingest:4000 through the Coolify proxy.
-# Run explicitly with: docker compose -f docker-compose.yml up --build
+# Images are built by GitHub Actions; this VPS only pulls and starts them.
+# Pin FOGLAMP_IMAGE_TAG to a successful workflow commit SHA.
 
 x-app-env: &app-env
   NODE_ENV: production
@@ -24,8 +25,16 @@ x-app-env: &app-env
   FOGLAMP_SECRETS_KEY: ${FOGLAMP_SECRETS_KEY:?}
   REDIS_URL: redis://redis:6379
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
+    restart: unless-stopped
+    logging: *logging
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: foglamp
@@ -40,6 +49,8 @@ services:
       retries: 10
 
   clickhouse:
+    restart: unless-stopped
+    logging: *logging
     image: clickhouse/clickhouse-server:24.8-alpine
     environment:
       CLICKHOUSE_DB: foglamp
@@ -64,6 +75,8 @@ services:
       retries: 15
 
   redis:
+    restart: unless-stopped
+    logging: *logging
     image: redis:7-alpine
     volumes:
       - redis_data:/data
@@ -76,9 +89,8 @@ services:
   # One-shot: Postgres migrate + ClickHouse DDL + retention + seed, then exits.
   # The app tiers wait for it to complete successfully.
   migrate:
-    build:
-      context: .
-      target: migrate
+    logging: *logging
+    image: ghcr.io/predo-soares/foglamp-migrate:${FOGLAMP_IMAGE_TAG:?}
     environment: *app-env
     depends_on:
       postgres:
@@ -88,9 +100,9 @@ services:
     restart: "no"
 
   server:
-    build:
-      context: .
-      target: server
+    restart: unless-stopped
+    logging: *logging
+    image: ghcr.io/predo-soares/foglamp-server:${FOGLAMP_IMAGE_TAG:?}
     environment:
       <<: *app-env
       PORT: "3000"
@@ -103,9 +115,9 @@ services:
         condition: service_completed_successfully
 
   ingest:
-    build:
-      context: .
-      target: ingest
+    restart: unless-stopped
+    logging: *logging
+    image: ghcr.io/predo-soares/foglamp-ingest:${FOGLAMP_IMAGE_TAG:?}
     environment:
       <<: *app-env
       INGEST_PORT: "4000"
@@ -120,12 +132,9 @@ services:
         condition: service_completed_successfully
 
   web:
-    build:
-      context: .
-      target: web
-      args:
-        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?}
+    restart: unless-stopped
+    logging: *logging
+    image: ghcr.io/predo-soares/foglamp-web:${FOGLAMP_IMAGE_TAG:?}
     environment:
       NODE_ENV: production
       PORT: "3001"
