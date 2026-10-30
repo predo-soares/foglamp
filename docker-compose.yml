@@ -1,30 +1,14 @@
-# Foglamp self-host stack — from zero to instrumented with one command:
-#
-#   docker compose up --build
-#
-# Then open the dashboard at http://localhost:3001 and log in with the admin
-# credentials printed once by the `migrate` service (search its logs for
-# "Save these now"). Point the SDK at the ingest API on http://localhost:4000.
-#
-# Plain Postgres + ClickHouse + Redis — no queue. Redis only backs
-# ingest rate limiting; remove the service (and REDIS_URL) and ingest falls back
-# to per-instance in-memory limiting. Email is optional: leave RESEND_API_KEY
-# unset and you still log in via the seeded email+password admin.
-#
-# Override secrets/URLs with a local `.env` next to this file, e.g.
-#   BETTER_AUTH_SECRET=...   (REQUIRED in production; the default is dev-only)
-#   RESEND_API_KEY=...       (enables magic-link + alert emails)
-#   ADMIN_EMAIL=... ADMIN_PASSWORD=...   (otherwise a random password is printed)
+# Foglamp production stack for Coolify.
+# Configure required variables in Coolify; never commit production secrets.
+# Route web:3001, server:3000, ingest:4000 through the Coolify proxy.
+# Run explicitly with: docker compose -f docker-compose.yml up --build
 
-# Shared environment for the backend tiers (server, ingest, migrate). Service
-# DNS names (postgres, clickhouse, server) resolve on the default compose
-# network; the published ports are what the host browser / SDK use.
 x-app-env: &app-env
   NODE_ENV: production
-  DATABASE_URL: postgres://foglamp:foglamp@postgres:5432/foglamp
-  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev_only_secret_change_me_0123456789abcd}
-  BETTER_AUTH_URL: http://localhost:3000
-  CORS_ORIGIN: http://localhost:3001
+  DATABASE_URL: postgres://foglamp:${POSTGRES_PASSWORD:?}@postgres:5432/foglamp
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:?}
+  CORS_ORIGIN: ${CORS_ORIGIN:?}
   CLICKHOUSE_URL: http://clickhouse:8123
   CLICKHOUSE_USER: default
   CLICKHOUSE_PASSWORD: ""
@@ -35,8 +19,9 @@ x-app-env: &app-env
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   AUTH_DISABLE_EMAIL_PASSWORD: ${AUTH_DISABLE_EMAIL_PASSWORD:-}
-  ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:?}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:?}
+  FOGLAMP_SECRETS_KEY: ${FOGLAMP_SECRETS_KEY:?}
   REDIS_URL: redis://redis:6379
 
 services:
@@ -44,7 +29,7 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: foglamp
-      POSTGRES_PASSWORD: foglamp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
       POSTGRES_DB: foglamp
     volumes:
       - pg_data:/var/lib/postgresql/data
@@ -109,8 +94,6 @@ services:
     environment:
       <<: *app-env
       PORT: "3000"
-    ports:
-      - "3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,8 +109,6 @@ services:
     environment:
       <<: *app-env
       INGEST_PORT: "4000"
-    ports:
-      - "4000:4000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,18 +124,16 @@ services:
       context: .
       target: web
       args:
-        NEXT_PUBLIC_SERVER_URL: http://localhost:3000
-        NEXT_PUBLIC_APP_URL: http://localhost:3001
+        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?}
     environment:
       NODE_ENV: production
       PORT: "3001"
       # Baked into the client bundle (browser-facing); kept here for parity.
-      NEXT_PUBLIC_SERVER_URL: http://localhost:3000
-      NEXT_PUBLIC_APP_URL: http://localhost:3001
+      NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL:?}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:?}
       # SSR session gate reaches the server over the internal network.
       INTERNAL_SERVER_URL: http://server:3000
-    ports:
-      - "3001:3001"
     depends_on:
       server:
         condition: service_started

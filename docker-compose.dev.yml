@@ -1,10 +1,10 @@
-# Local development overrides — auto-merged by `docker compose`.
+# Local development overrides — opt in explicitly; never use in production.
 #
 # Publishes the Postgres, ClickHouse, and Redis ports to the host so the app
 # tiers (server, ingest, web) can run locally with hot reload while the stateful
 # infra stays in Docker. Typical dev loop:
 #
-#   docker compose up -d postgres clickhouse redis   # infra only (data persists in volumes)
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres clickhouse redis   # infra only (data persists in volumes)
 #   bun dev                                           # server + ingest + web, hot-reloaded
 #
 # For a fully containerized production self-host, run without this file:
