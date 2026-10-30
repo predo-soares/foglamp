@@ -74,7 +74,8 @@ ARG NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3001
 ENV NEXT_PUBLIC_SERVER_URL=${NEXT_PUBLIC_SERVER_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-RUN bun run --filter web build
+# The dashboard imports foglamp/hud from the SDK workspace dist output.
+RUN bun run --filter foglamp build && bun run --filter web build
 WORKDIR /app/apps/web
 ENV NODE_ENV=production
 ENV PORT=3001
